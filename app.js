@@ -443,6 +443,7 @@ const ui = {
   workout: null, // { dayKey, finished }
   timer: null,   // { end, total, hold, idx }
   calOffset: 0,
+  dayOffset: 0,   // 0 = today, -1 = yesterday ...
   reorder: false,
   skipInstall: false
 };
@@ -624,8 +625,21 @@ function greeting() {
   const n = firstName();
   return n ? `${part}, ${esc(n)}` : part;
 }
+function dayWord(day) {
+  const diff = Math.round((TODAY() - day) / 86400000);
+  return diff === 0 ? 'TODAY' : diff === 1 ? 'YESTERDAY' : wdName(day).toUpperCase();
+}
+function dayNavHTML(day) {
+  const prev = addDays(day, -1);
+  const canBack = D.startDayKey && dkey(prev) >= D.startDayKey && ui.dayOffset > -6;
+  const label = ui.dayOffset === 0 ? 'Today' : ui.dayOffset === -1 ? 'Yesterday' : wdName(day);
+  const date = day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `<div class="daynav"><button class="mini" data-a="dayNav" data-d="-1" ${canBack ? '' : 'disabled'}>‹</button>
+    <span><strong>${label}</strong> <span class="muted sm">· ${date}</span></span>
+    <button class="mini" data-a="dayNav" data-d="1" ${ui.dayOffset >= 0 ? 'disabled' : ''}>›</button></div>`;
+}
 function todayHTML() {
-  const day = TODAY();
+  const day = addDays(TODAY(), ui.dayOffset);
   const f = focusFor(day);
   const rec = D.records[dkey(day)];
   let card;
@@ -635,6 +649,7 @@ function todayHTML() {
   const backupNag = shouldNagBackup() ? `<button class="card note" data-a="tab" data-v="me">💾 It's been a while since your last backup. Tap to save one in the Me tab.</button>` : '';
   return `<div class="greet">${greeting()}</div><h1>Lock In</h1>
     ${streakCardHTML()}
+    ${dayNavHTML(day)}
     ${!D.equipment.hasDumbbells ? `<div class="card note">📦 <strong>No-dumbbell mode.</strong> Waiting on dumbbells? Every workout uses bodyweight versions until you turn dumbbells on in the Me tab.</div>` : ''}
     ${card}
     ${weekStripHTML()}
@@ -665,6 +680,7 @@ function streakCardHTML() {
     <div class="muted xs">${line}</div></div>`;
 }
 function deadlineHTML(day) {
+  if (dkey(day) < dkey(TODAY())) return `<div class="deadline warn">⏪ Catching up — this counts for ${wdName(day)}, ${day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.</div>`;
   const now = new Date();
   const left = (deadline(day) - now) / 1000;
   const after = dkey(now) !== dkey(day);
@@ -680,7 +696,7 @@ function workoutCardHTML(day, f) {
   const F = FOCUS[f];
   return `<div class="card">
     <div class="row top"><div class="grow">
-      <div class="eyebrow" style="color:${F.color}">TODAY · ${wdName(day).toUpperCase()}</div>
+      <div class="eyebrow" style="color:${F.color}">${dayWord(day) === 'TODAY' ? 'TODAY · ' + wdName(day).toUpperCase() : dayWord(day)}</div>
       <div class="title">${F.title}</div>
       <div class="muted sm">${plan.length} exercises · ~${estMinutes(plan)} min${bw ? ' · no dumbbells' : ''}</div></div>
       <div class="ficon">${F.icon}</div></div>
@@ -696,7 +712,7 @@ function workoutCardHTML(day, f) {
 function restCardHTML(day) {
   return `<div class="card">
     <div class="row top"><div class="grow">
-      <div class="eyebrow">TODAY · ${wdName(day).toUpperCase()}</div><div class="title">Rest day</div>
+      <div class="eyebrow">${dayWord(day) === 'TODAY' ? 'TODAY · ' + wdName(day).toUpperCase() : dayWord(day)}</div><div class="title">Rest day</div>
       <div class="muted sm">Recovery is when muscle actually grows. Your streak is safe.</div></div><div class="ficon">😴</div></div>
     ${sh('Optional active recovery')}
     <ul class="plain">${LIB.restIdeas.map(t => `<li>✓ ${esc(t)}</li>`).join('')}</ul>
@@ -718,7 +734,7 @@ function completedCardHTML(rec, day) {
 }
 function excusedCardHTML(rec, day) {
   return `<div class="card">
-    <div class="row"><div class="ficon">⏸️</div><div class="grow"><div class="title sm">Excused today</div><div class="muted sm">${esc(rec.excuseReason || 'Taking the day')}</div></div></div>
+    <div class="row"><div class="ficon">⏸️</div><div class="grow"><div class="title sm">Excused</div><div class="muted sm">${esc(rec.excuseReason || 'Taking the day')}</div></div></div>
     <div class="muted sm">Your streak is safe. Rest up and come back strong.</div>
     <button class="btn ghost" data-a="undoExcuse" data-k="${dkey(day)}">↩ Changed my mind — I'll train</button></div>`;
 }
@@ -1089,7 +1105,8 @@ function tickTimer() {
 const A = {
   skipInstall() { ui.skipInstall = true; render(); },
   closeSheet() { closeSheet(); },
-  tab(d) { ui.tab = d.v; ui.sheets = []; render(); window.scrollTo(0, 0); },
+  tab(d) { ui.tab = d.v; ui.sheets = []; ui.dayOffset = 0; render(); window.scrollTo(0, 0); },
+  dayNav(d) { ui.dayOffset = Math.min(0, Math.max(-6, ui.dayOffset + Number(d.d))); render(); },
 
   // onboarding
   obNext() {
@@ -1347,6 +1364,7 @@ setInterval(() => {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   if (ui.workout && !ui.workout.finished) keepAwake(true);
+  if (!ui.workout && !ui.sheets.length) ui.dayOffset = 0;
   streakCache = null;
   if (ensureWeekPlans()) persist();
   tickTimer();
