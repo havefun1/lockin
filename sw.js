@@ -1,6 +1,6 @@
 // Lock In offline support: always tries the network first (so updates show up),
 // and falls back to the saved copy when you're offline or the gym Wi-Fi is bad.
-const CACHE = 'lockin-v1';
+const CACHE = 'lockin-v2';
 const ASSETS = ['./', './index.html', './app.js', './library.js', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
@@ -22,7 +22,7 @@ self.addEventListener('fetch', event => {
   event.respondWith((async () => {
     try {
       const res = await Promise.race([
-        fetch(req),
+        fetch(req, { cache: 'no-cache' }), // always ask GitHub for the newest version
         new Promise((_, reject) => setTimeout(() => reject(new Error('slow network')), 4000))
       ]);
       if (res && res.ok) {
