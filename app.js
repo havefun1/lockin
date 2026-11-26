@@ -627,16 +627,16 @@ function greeting() {
 }
 function dayWord(day) {
   const diff = Math.round((TODAY() - day) / 86400000);
-  return diff === 0 ? 'TODAY' : diff === 1 ? 'YESTERDAY' : wdName(day).toUpperCase();
+  return diff === 0 ? 'TODAY' : diff === 1 ? 'YESTERDAY' : diff === -1 ? 'TOMORROW' : wdName(day).toUpperCase();
 }
 function dayNavHTML(day) {
   const prev = addDays(day, -1);
   const canBack = D.startDayKey && dkey(prev) >= D.startDayKey && ui.dayOffset > -6;
-  const label = ui.dayOffset === 0 ? 'Today' : ui.dayOffset === -1 ? 'Yesterday' : wdName(day);
+  const label = ui.dayOffset === 0 ? 'Today' : ui.dayOffset === -1 ? 'Yesterday' : ui.dayOffset === 1 ? 'Tomorrow' : wdName(day);
   const date = day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   return `<div class="daynav"><button class="mini" data-a="dayNav" data-d="-1" ${canBack ? '' : 'disabled'}>‹</button>
     <span><strong>${label}</strong> <span class="muted sm">· ${date}</span></span>
-    <button class="mini" data-a="dayNav" data-d="1" ${ui.dayOffset >= 0 ? 'disabled' : ''}>›</button></div>`;
+    <button class="mini" data-a="dayNav" data-d="1" ${ui.dayOffset >= 6 ? 'disabled' : ''}>›</button></div>`;
 }
 function todayHTML() {
   const day = addDays(TODAY(), ui.dayOffset);
@@ -680,6 +680,7 @@ function streakCardHTML() {
     <div class="muted xs">${line}</div></div>`;
 }
 function deadlineHTML(day) {
+  if (dkey(day) > dkey(TODAY())) return `<div class="deadline">⏩ Coming up — doing it now counts for ${wdName(day)}, ${day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.</div>`;
   if (dkey(day) < dkey(TODAY())) return `<div class="deadline warn">⏪ Catching up — this counts for ${wdName(day)}, ${day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.</div>`;
   const now = new Date();
   const left = (deadline(day) - now) / 1000;
@@ -1106,7 +1107,7 @@ const A = {
   skipInstall() { ui.skipInstall = true; render(); },
   closeSheet() { closeSheet(); },
   tab(d) { ui.tab = d.v; ui.sheets = []; ui.dayOffset = 0; render(); window.scrollTo(0, 0); },
-  dayNav(d) { ui.dayOffset = Math.min(0, Math.max(-6, ui.dayOffset + Number(d.d))); render(); },
+  dayNav(d) { ui.dayOffset = Math.min(6, Math.max(-6, ui.dayOffset + Number(d.d))); render(); },
 
   // onboarding
   obNext() {
