@@ -331,6 +331,11 @@ function lockItems() {
   ];
 }
 
+// Short how-to videos for warm-up moves and stretches.
+function moveVideoURL(name) {
+  const q = name.replace(/\s*\(.*?\)/g, '').trim();
+  return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(`${q} how to #shorts`);
+}
 function videoURL(ex) {
   const pinned = D.pinnedVideos[ex.id];
   if (pinned && /^https?:\/\//i.test(pinned)) return pinned;
@@ -877,8 +882,8 @@ function lockInBodyHTML(k, justFinished) {
     <p class="muted sm">What you do in the next few hours decides how much of today's work sticks. Tap each one as you do it.</p>
     ${items.map(it => `<button class="card lock ${checked.includes(it.id) ? 'on' : ''}" data-a="lockToggle" data-k="${k}" data-v="${it.id}">
       <span class="check">${checked.includes(it.id) ? '✓' : ''}</span><span class="grow"><strong>${it.icon} ${esc(it.title)}</strong><span class="muted sm block">${esc(it.detail)}</span></span></button>`).join('')}
-    <div class="card">${sh('Cool-down stretches')}<div class="list">${cooldown.map(([n, sec]) => `<div class="li static"><span class="grow">🧘 ${esc(n)}</span><span class="muted sm">${sec}s</span></div>`).join('')}</div>
-      <div class="muted xs">Breathe slowly and ease into each stretch. It should feel like a pull, never pain.</div></div>
+    <div class="card">${sh('Cool-down stretches')}<div class="list">${cooldown.map(([n, sec]) => `<a class="li" href="${esc(moveVideoURL(n))}" target="_blank" rel="noopener"><span class="grow">🧘 ${esc(n)}</span><span class="muted sm">${sec}s</span><span class="play">▶</span></a>`).join('')}</div>
+      <div class="muted xs">Tap a stretch to watch a quick video on how to do it. Breathe slowly and ease in — it should feel like a pull, never pain.</div></div>
     <div class="card"><div class="row top"><div class="ficon">${FOCUS[next].icon}</div><div class="grow"><strong>${next === 'rest' ? 'Tomorrow: Rest day' : 'Tomorrow: ' + FOCUS[next].title}</strong>
       <div class="muted sm">${next === 'rest' ? "Recovery day. Walk, stretch, eat well and sleep — that's where today's work turns into muscle." : "Get to bed on time and have water ready. If you're sore, the warm-up will loosen you up."}</div></div></div></div>
     <div class="card"><div class="row top"><div class="ficon">🩹</div><div class="grow"><strong>Sore tomorrow?</strong>
@@ -1064,8 +1069,8 @@ function previewSheet(s) {
     <div class="muted xs">This week is Version ${thisWeek}. Weights shown are what you'd do right now at level ${level()}.</div>
     ${sh('Exercises · tap for form + video')}
     <div class="list card inset">${list.map(r => `<button class="li" data-a="ex" data-id="${r.ex.id}"><span class="grow"><span class="block">${esc(r.ex.name)}</span><span class="muted xs">${summary(r)}</span></span><span class="play">▶</span></button>`).join('')}</div>
-    ${sh('Warm-up')}<div class="list card inset">${(LIB.warmups[s.f] || []).map(([n, sec]) => `<div class="li static"><span class="grow">${esc(n)}</span><span class="muted sm">${sec}s</span></div>`).join('')}</div>
-    ${sh('Cool-down stretches')}<div class="list card inset">${(LIB.cooldowns[s.f] || []).map(([n, sec]) => `<div class="li static"><span class="grow">${esc(n)}</span><span class="muted sm">${sec}s</span></div>`).join('')}</div>`];
+    ${sh('Warm-up · tap for video')}<div class="list card inset">${(LIB.warmups[s.f] || []).map(([n, sec]) => `<a class="li" href="${esc(moveVideoURL(n))}" target="_blank" rel="noopener"><span class="grow">${esc(n)}</span><span class="muted sm">${sec}s</span><span class="play">▶</span></a>`).join('')}</div>
+    ${sh('Cool-down stretches · tap for video')}<div class="list card inset">${(LIB.cooldowns[s.f] || []).map(([n, sec]) => `<a class="li" href="${esc(moveVideoURL(n))}" target="_blank" rel="noopener"><span class="grow">${esc(n)}</span><span class="muted sm">${sec}s</span><span class="play">▶</span></a>`).join('')}</div>`];
 }
 function daySheet(s) {
   const day = kdate(s.k);
