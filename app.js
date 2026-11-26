@@ -337,6 +337,44 @@ function videoURL(ex) {
   return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(`${ex.name} proper form #shorts`);
 }
 
+// ---------------------------------------------------------------- progress report (to paste into Claude)
+function progressReport() {
+  const p = D.profile, eq = D.equipment, st = streak(), today = TODAY();
+  const fmtDay = d => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const lines = [];
+  lines.push(`LOCK IN PROGRESS REPORT — ${fmtDay(today)}`);
+  lines.push(`Me: ${p.name || '—'}, ${p.age}, ${num(p.weightLb)} lb, ${EXPERIENCE[p.experience] ? EXPERIENCE[p.experience].title : p.experience}`);
+  lines.push(`Dumbbells: ${!eq.hasDumbbells ? 'none right now (no-dumbbell mode)' : eq.kind === 'adjustable' ? `adjustable ${lb(eq.adjustableMin)}–${lb(eq.adjustableMax)} in ${num(eq.adjustableStep)} lb steps` : 'pairs of ' + availableWeights(eq).map(num).join(', ') + ' lb'}`);
+  lines.push(`Streak: ${plural(st.current, 'week')} (best ${st.best}) · Level ${st.consistentWeeks} · This week ${st.thisWeek.done}/${st.thisWeek.required}${D.startDayKey ? ' · Started ' + fmtDay(kdate(D.startDayKey)) : ''}`);
+  lines.push(`Plan: ${D.settings.schedule.map((f, i) => WD_SHORT[i] + ' ' + FOCUS[f].short).join(', ')} · rest ${D.settings.restSeconds}s · ${D.settings.maxExcusesPerWeek} excuses/wk`);
+  lines.push('');
+  lines.push('LAST 14 DAYS');
+  for (let i = 13; i >= 0; i--) {
+    const day = addDays(today, -i);
+    const k = dkey(day);
+    if (D.startDayKey && k < D.startDayKey) continue;
+    const rec = D.records[k], f = focusFor(day), state = dayState(day);
+    let line = `- ${fmtDay(day)} · ${FOCUS[f].title}: `;
+    if (rec && rec.status === 'completed') line += `DONE${rec.durationSeconds ? ` (${Math.max(1, Math.round(rec.durationSeconds / 60))} min)` : ''}${rec.noDumbbells ? ' no-dumbbell version' : ''}${rec.lockIn && rec.lockIn.length ? ` · lock-in ${rec.lockIn.length}/6` : ''}`;
+    else if (rec) line += `EXCUSED (${rec.excuseReason || 'no reason'})`;
+    else line += { rest: 'rest day', today: 'not done yet', missed: 'MISSED', upcoming: 'upcoming', before: '—' }[state] || state;
+    lines.push(line);
+    if (rec && rec.exercises) for (const e of rec.exercises) {
+      lines.push(`    ${e.name}: ${e.setsDone}/${e.totalSets} sets × ${e.isTimed ? e.target + 's' : e.target}${e.weight != null ? ' @ ' + lb(e.weight) : ''}${e.feedback ? ' — ' + FEEDBACK[e.feedback].label : ''}`);
+    }
+  }
+  const prs = Object.entries(D.personalBests).filter(([id]) => EX[id]).map(([id, w]) => `${EX[id].name} ${lb(w)}`);
+  if (prs.length) { lines.push(''); lines.push('PERSONAL BESTS: ' + prs.join(' · ')); }
+  const tweaks = Object.entries(D.feedbackOffsets).filter(([id, v]) => EX[id] && v).map(([id, v]) => `${EX[id].name} ${v > 0 ? '+' : ''}${v}`);
+  if (tweaks.length) lines.push('AUTO-ADJUSTMENTS (steps): ' + tweaks.join(' · '));
+  const log = D.bodyweightLog.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+  if (log.length) lines.push('BODY WEIGHT: ' + log.slice(-6).map(e => `${num(e.weightLb)} (${new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`).join(' → '));
+  const upcoming = planForDay(addDays(today, D.records[dkey(today)] ? 1 : 0));
+  lines.push('');
+  lines.push(`NEXT WORKOUT (${FOCUS[focusFor(addDays(today, D.records[dkey(today)] ? 1 : 0))].title}): ` + (upcoming.length ? upcoming.map(r => `${r.ex.name} ${shortSummary(r)}`).join(' · ') : 'rest day'));
+  return lines.join('\n');
+}
+
 // ---------------------------------------------------------------- data changes
 function ensureWeekPlans() {
   if (!D.startDayKey) return false;
@@ -881,6 +919,7 @@ function progressHTML() {
   const total = Object.values(D.records).filter(r => r.status === 'completed').length;
   const b = weeksUntilBump(s.consistentWeeks);
   return `<h1>Progress</h1>
+    <button class="btn primary" data-a="shareProgress" style="margin-bottom:14px">🤖 Send progress to Claude</button>
     <div class="tiles">
       <div class="card tile"><span>🔥</span><b>${s.current}</b><small>WEEKS</small><em>Current streak</em></div>
       <div class="card tile"><span>🏆</span><b>${s.best}</b><small>WEEKS</small><em>Best streak</em></div>
@@ -957,6 +996,8 @@ function meHTML() {
     <div class="card">${sh('Dumbbells')}${dumbbellEditorHTML()}
       <div class="muted xs">Ordering dumbbells? Turn the switch off until they arrive — workouts swap to no-dumbbell versions so your streak keeps going. The app picks the closest weight you own and adds reps when it's between sizes.</div></div>
     <div class="card">${sh('Workouts')}${stepperHTML('Rest between sets', D.settings.restSeconds + 's', 'rest')}</div>
+    <div class="card">${sh('Check-in with Claude')}<button class="btn ghost" data-a="shareProgress">🤖 Send progress to Claude</button>
+      <div class="muted xs">Makes a short text report of your streak, workouts, weights and feedback. Share or paste it into your chat with Claude for a review.</div></div>
     <div class="card">${sh('Backup')}
       <button class="btn ghost" data-a="exportBackup">💾 Save a backup file</button>
       <label class="btn ghost filebtn">📂 Restore from a backup<input type="file" accept=".json,application/json" data-ch="importBackup"></label>
@@ -967,7 +1008,7 @@ function meHTML() {
 
 // ---------- sheets
 function sheetHTML(s) {
-  const views = { ex: exSheet, excuse: excuseSheet, switch: switchSheet, lockin: lockinSheet, confirmFinish: confirmFinishSheet, preview: previewSheet, day: daySheet, weight: weightSheet, reset: resetSheet };
+  const views = { report: () => ['Your progress report', `<p class="muted sm">Copy this and paste it into your chat with Claude.</p><textarea readonly style="width:100%;height:50vh;background:var(--card2);color:var(--text);border:0;border-radius:14px;padding:12px;font:13px/1.4 ui-monospace,monospace">${esc(progressReport())}</textarea>`], ex: exSheet, excuse: excuseSheet, switch: switchSheet, lockin: lockinSheet, confirmFinish: confirmFinishSheet, preview: previewSheet, day: daySheet, weight: weightSheet, reset: resetSheet };
   const [title, body] = views[s.t](s);
   return `<div class="sheet-wrap ${ui.animateSheet ? 'anim' : ''}"><div class="backdrop" data-a="closeSheet"></div>
     <div class="sheet" data-scroll="sheet-${s.t}"><div class="grabber"></div>
@@ -1283,6 +1324,14 @@ const A = {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
     markSaved();
+  },
+  async shareProgress() {
+    const text = progressReport();
+    try {
+      if (navigator.share) { await navigator.share({ text, title: 'Lock In progress' }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(text); toast('📋 Copied — paste it into your chat with Claude'); }
+    catch (e) { openSheet({ t: 'report' }); }
   },
   resetSheet() { openSheet({ t: 'reset' }); },
   resetConfirm() {
